@@ -28,35 +28,18 @@ jobs:
           repo_name="${GITHUB_REPOSITORY##*/}"
           echo "Building with base: /${repo_name}/"
           npm run build -- --base "/${repo_name}/"
-      - name: Upload artifact (upload-artifact v4)
-        uses: actions/upload-artifact@v4
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v1
         with:
-          name: dist
           path: ./dist
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository (needed for deploy action)
-        uses: actions/checkout@v4
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: ./dist
-      - name: Show `dist/` contents (debug)
+      - name: Deploy Pages artifact
+        uses: actions/deploy-pages@v1
+      - name: Show Pages status
         run: |
-          echo "Contents of dist:" && ls -la dist || true
-          echo "Size:" && du -sh dist || true
-      - name: Deploy to GitHub Pages
-        uses: JamesIves/github-pages-deploy-action@v4
-        with:
-          folder: dist
-          branch: gh-pages
-          # Prefer user-provided PAT with repo permissions (set as secret GH_PAGES_DEPLOY_TOKEN),
-          # fall back to the automatically provided GITHUB_TOKEN if a PAT isn't available.
-          token: ${{ secrets.GH_PAGES_DEPLOY_TOKEN || secrets.GITHUB_TOKEN }}
-          clean: true
-          force: true
-          attempt-limit: 3
+          echo "Listing pages info"
+          gh api repos/$GITHUB_REPOSITORY/pages --jq '.url' || true
