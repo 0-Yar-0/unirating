@@ -5,7 +5,7 @@ on:
     branches: [ main ]
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -35,18 +35,26 @@ jobs:
           npm run build -- --base "/${repo_name}/"
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v1
-        with:
-          path: ./dist
+        run: echo "artifact ready"
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    permissions:
-      pages: write
     steps:
-      - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v1
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Deploy to gh-pages (peaceiris)
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: gh-pages
+          # optional: keep history false to force orphan commit
+          keep_files: false
+
       - name: Confirm Pages URL
         run: |
           echo "Pages deploy attempted. Visit: https://${{ github.repository_owner }}.github.io/${{ github.repository }}"
