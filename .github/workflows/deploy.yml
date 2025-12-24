@@ -54,7 +54,9 @@ jobs:
         with:
           folder: dist
           branch: gh-pages
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # Prefer user-provided PAT with repo permissions (set as secret GH_PAGES_DEPLOY_TOKEN),
+          # fall back to the automatically provided GITHUB_TOKEN if a PAT isn't available.
+          token: ${{ secrets.GH_PAGES_DEPLOY_TOKEN || secrets.GITHUB_TOKEN }}
           clean: true
           force: true
           attempt-limit: 3
