@@ -49,7 +49,8 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add --all
           git commit -m "$GIT_COMMIT_MSG" || true
-          remote_repo="https://${DEPLOY_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # Use x-access-token prefix so users can store PAT (token only) in the secret
+          remote_repo="https://x-access-token:${DEPLOY_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push --force "$remote_repo" HEAD:gh-pages
 
       - name: Confirm Pages URL
