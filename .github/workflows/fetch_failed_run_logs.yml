@@ -66,18 +66,11 @@ sys.exit(1)") || true
           done
 
           echo "Creating public gist with logs (last 200KB)..."
-          gist_resp=$(python - <<'PY'
-import sys,json,requests
-repo=sys.argv[1]
-with open('all_logs.txt','r',encoding='utf-8') as fh:
-    content=fh.read()
-resp=requests.post('https://api.github.com/gists', json={
-    'public': True,
-    'files': {'deploy-failed-logs.txt': {'content': content}},
-    'description': f'Logs for latest failed Deploy run in {repo}'
-}, headers={'Authorization': 'token ' + sys.argv[2]})
-print(resp.json().get('html_url'))
+          python - <<'PY' > /tmp/payload.json
+import json
+content=open('all_logs.txt','r',encoding='utf-8').read()
+payload={'public':True,'files':{'deploy-failed-logs.txt':{'content':content}},'description':'Logs for latest failed Deploy run in '+'''$GITHUB_REPOSITORY'''}
+print(json.dumps(payload))
 PY
-          $GITHUB_REPOSITORY "$TOKEN"
-
-          echo "Gist published. See the URL above in the step output."
+          gist_url=$(curl -s -X POST -H "Authorization: token $TOKEN" -H "Content-Type: application/json" -d @/tmp/payload.json https://api.github.com/gists | python -c "import sys, json; print(json.load(sys.stdin).get('html_url'))")
+          echo "Gist published: $gist_url"
