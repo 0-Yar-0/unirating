@@ -1,0 +1,83 @@
+name: Fetch latest failed deploy logs
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  fetch-logs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch failed Deploy run and job logs
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          TOKEN: ${{ secrets.TEMP_LOG_FETCHER }}
+        run: |
+          set -euo pipefail
+          echo "Using repo: $GITHUB_REPOSITORY"
+
+          # Find latest completed run named "Deploy to GitHub Pages" with conclusion "failure"
+          echo "Searching for latest failed 'Deploy to GitHub Pages' run..."
+          runs_json=$(curl -s -H "Authorization: token $TOKEN" "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs?per_page=50")
+          run_id=$(echo "$runs_json" | python -c "import sys, json
+r=json.load(sys.stdin)
+for run in r.get('workflow_runs',[]):
+  if run.get('name')=='Deploy to GitHub Pages' and run.get('conclusion')=='failure':
+    print(run.get('id'))
+    sys.exit(0)
+sys.exit(1)") || true
+
+          if [ -z "$run_id" ]; then
+            echo "No recent failed run found for 'Deploy to GitHub Pages'. Exiting."
+            exit 0
+          fi
+
+          echo "Found run id: $run_id"
+
+          # Get jobs for the run and select the failing job
+          jobs_json=$(curl -s -H "Authorization: token $TOKEN" "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs")
+          job_id=$(echo "$jobs_json" | python -c "import sys, json
+r=json.load(sys.stdin)
+for job in r.get('jobs',[]):
+  if job.get('conclusion')=='failure':
+    print(job.get('id'))
+    sys.exit(0)
+sys.exit(1)") || true
+
+          if [ -z "$job_id" ]; then
+            echo "No failing job found in run $run_id. Exiting."
+            exit 0
+          fi
+
+          echo "Found failing job id: $job_id"
+
+          # Download logs (this endpoint returns a zip)
+          echo "Downloading job logs..."
+          curl -sSL -H "Authorization: token $TOKEN" -o job_logs.zip "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/jobs/$job_id/logs"
+          unzip -o job_logs.zip -d job_logs || true
+          echo "Listing extracted log files:" && ls -la job_logs || true
+
+          # Concatenate all log files (limit to last 20000 chars to avoid huge gist)
+          log_concat="all_logs.txt"
+          : > $log_concat
+          for f in job_logs/*; do
+            echo -e "\n===== FILE: $f =====\n" >> $log_concat
+            tail -c 200000 "$f" >> $log_concat || true
+          done
+
+          echo "Creating public gist with logs (last 200KB)..."
+          gist_resp=$(python - <<'PY'
+import sys,json,requests
+repo=sys.argv[1]
+with open('all_logs.txt','r',encoding='utf-8') as fh:
+    content=fh.read()
+resp=requests.post('https://api.github.com/gists', json={
+    'public': True,
+    'files': {'deploy-failed-logs.txt': {'content': content}},
+    'description': f'Logs for latest failed Deploy run in {repo}'
+}, headers={'Authorization': 'token ' + sys.argv[2]})
+print(resp.json().get('html_url'))
+PY
+          $GITHUB_REPOSITORY "$TOKEN"
+
+          echo "Gist published. See the URL above in the step output."
