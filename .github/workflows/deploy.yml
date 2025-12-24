@@ -1,15 +1,16 @@
-name: Deploy to GitHub Pages (build & push)
+name: Deploy to GitHub Pages (build & deploy)
 
 on:
   push:
     branches: [ main ]
 
 permissions:
-  contents: write
+  contents: read
   pages: write
+  id-token: write
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -33,26 +34,19 @@ jobs:
           echo "Building with base: /${repo_name}/"
           npm run build -- --base "/${repo_name}/"
 
-      - name: Prepare deploy commit
-        env:
-          DEPLOY_TOKEN: ${{ secrets.GH_PAGES_DEPLOY_TOKEN || secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GIT_COMMIT_MSG: "Deploy to gh-pages: ${{ github.sha }}"
-        run: |
-          if [ -z "${DEPLOY_TOKEN}" ]; then
-            echo "ERROR: No deploy token available (set GH_PAGES_DEPLOY_TOKEN or ensure GITHUB_TOKEN has permissions)." >&2
-            exit 1
-          fi
-          cd dist
-          git init
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add --all
-          git commit -m "$GIT_COMMIT_MSG" || true
-          # Use x-access-token prefix so users can store PAT (token only) in the secret
-          remote_repo="https://x-access-token:${DEPLOY_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push --force "$remote_repo" HEAD:gh-pages
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: ./dist
 
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+    steps:
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v1
       - name: Confirm Pages URL
         run: |
-          echo "Pages deploy attempted. Visit: https://$GITHUB_REPOSITORY_OWNER.github.io/${GITHUB_REPO_NAME##*/}"
+          echo "Pages deploy attempted. Visit: https://${{ github.repository_owner }}.github.io/${{ github.repository }}"
