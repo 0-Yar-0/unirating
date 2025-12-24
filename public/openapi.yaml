@@ -1,0 +1,275 @@
+openapi: 3.0.3
+info:
+  title: Университетский рейтинг — API
+  version: 1.0.0
+  description: |
+    OpenAPI спецификация для backend-API, используемого фронтендом. Спецификация служит документацией и позволяет использовать "Try it out" через Swagger UI.
+servers:
+  - url: "{baseUrl}"
+    variables:
+      baseUrl:
+        default: "http://localhost:3000"
+        description: "URL вашего backend-сервера. Для публикации онлайн установите правильное значение или используйте абсолютный URL в Swagger UI."
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sid # поменяйте на реальное имя куки-сессии на сервере
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+      required: [id, name, email]
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+    RegisterRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+      required: [name, email, password]
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required: [email, password]
+    MultiCalcRequest:
+      type: object
+      properties:
+        classes:
+          type: array
+          items:
+            type: object
+            properties:
+              classType:
+                type: string
+              data:
+                type: array
+                items:
+                  type: object
+            required: [classType, data]
+    MetricNamesDto:
+      type: object
+      properties:
+        calcResultId:
+          type: integer
+        codeB11:
+          type: string
+        codeB12:
+          type: string
+        codeB13:
+          type: string
+        codeB21:
+          type: string
+paths:
+  /api/auth/register:
+    post:
+      summary: Регистрация пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: Успешная регистрация (возвращает объект пользователя)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/auth/login:
+    post:
+      summary: Вход (устанавливает куки-сессию)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Успешный вход — возвращает `User` и устанавливает cookie-сессию
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Неверные креденшалы
+  /api/auth/logout:
+    post:
+      summary: Выйти (удаляет куки-сессию)
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Успешный выход
+  /api/auth/me:
+    get:
+      summary: Текущий залогиненный пользователь
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Объект `User`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Неавторизован
+  /api/rating/calc-multi:
+    post:
+      summary: Сохранить параметры и пересчитать
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MultiCalcRequest'
+      responses:
+        '200':
+          description: Результат расчёта (структура зависит от сервера)
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/rating/export-params:
+    get:
+      summary: Экспорт последних параметров по всем классам
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Объект параметров
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/rating/clear-current:
+    post:
+      summary: Сбросить текущую итерацию пользователя
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Ок
+  /api/b/params/last:
+    get:
+      summary: Последние параметры класса B
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Параметры
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/b/calc/last:
+    get:
+      summary: Последние расчёты по B
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Результаты расчётов
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/rating/history:
+    get:
+      summary: История (по всем классам)
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Массив истории
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+    delete:
+      summary: Очистить историю
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Удалено
+  /api/b/history:
+    get:
+      summary: История по B
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Массив истории по B
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+  /api/b/metric-names:
+    put:
+      summary: Обновить названия метрик для результата
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MetricNamesDto'
+      responses:
+        '200':
+          description: Обновлённый объект
+  /api/b/params/iter/{iter}:
+    get:
+      summary: Параметры класса B для конкретной итерации
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: iter
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Параметры для итерации
+          content:
+            application/json:
+              schema:
+                type: object
+
+security:
+  - cookieAuth: []
